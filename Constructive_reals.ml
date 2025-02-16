@@ -288,15 +288,15 @@ type series_init =
   ; p : int32
   }
 
-(* type sum_iteration = *)
-(*   { current_term : Z.t *)
-(*   ; current_sum : Z.t *)
-(*   } *)
+type sum_iteration =
+  { current_term : Z.t
+  ; current_sum : Z.t
+  }
 
-(* type sum_scope_value = string * sum_iteration Queue.t *)
+type sum_scope_value = string * sum_iteration Queue.t
 
 let sum_scope_enabled = ref false
-(* let sum_scope_values : sum_scope_value Queue.t = Queue.create () *)
+let sum_scope_values : sum_scope_value Queue.t = Queue.create ()
 
 let string_of_scaled_int scaled_int digits =
   let scaled_string : string = Z.(scaled_int |> abs |> to_string) in
@@ -569,25 +569,25 @@ let scale k n =
 let sum_series
     : name:string -> init:series_init -> f:(n:int -> current_term:Z.t -> Z.t) -> Z.t
   =
- fun ~name:_ ~init ~f ->
+ fun ~name ~init ~f ->
   let n = ref 0 in
   let current_term = ref init.current_term in
   let current_sum = ref init.current_sum in
-  (* let sum_scope_value = *)
-  (*   Queue.of_list [ { current_term = !current_term; current_sum = !current_sum } ] *)
-  (* in *)
+  let sum_scope_value =
+    Queue.of_list [ { current_term = !current_term; current_sum = !current_sum } ]
+  in
   let { calc_precision; max_trunc_error; _ } = init in
   while Z.(abs !current_term >= max_trunc_error) do
     current_term := f ~n:!n ~current_term:!current_term;
     (current_sum := Z.(!current_sum + !current_term));
-    (* if !sum_scope_enabled *)
-    (* then *)
-    (*   Queue.enqueue *)
-    (*     sum_scope_value *)
-    (*     { current_term = !current_term; current_sum = !current_sum }; *)
+    if !sum_scope_enabled
+    then
+      Queue.enqueue
+        sum_scope_value
+        { current_term = !current_term; current_sum = !current_sum };
     Int.incr n
   done;
-  (* if !sum_scope_enabled then Queue.enqueue sum_scope_values (name, sum_scope_value); *)
+  if !sum_scope_enabled then Queue.enqueue sum_scope_values (name, sum_scope_value);
   scale !current_sum Int32.(calc_precision - init.p)
 ;;
 
@@ -1418,7 +1418,6 @@ let%test_module "Calculator" =
         ]
     ;;
 
-    (*
   let print_approximation t i =
     let v = approximate t (Int32.of_int_exn i) in
     printf "%s %s\n" (Z.to_string v) (Z.format "%b" v)
@@ -1430,11 +1429,17 @@ let%test_module "Calculator" =
     print_approximation (of_int 5) 2;
     print_approximation (of_int 5) 3;
     print_approximation (of_int 5) 4;
-    [%expect]
-  *)
+    [%expect {|
+      5120 1010000000000
+      5 101
+      3 11
+      1 1
+      1 1
+      0 0
+      |}]
 
-    (*
-  let print_sum_scope f =
+      (* Can be used for debugging *)
+  let _print_sum_scope f =
     sum_scope_enabled := true;
     print (f ());
     sum_scope_values
@@ -1447,13 +1452,14 @@ let%test_module "Calculator" =
           printf "current_sum: %s, current_term: %s\n"
             (Z.to_string current_sum) (Z.to_string current_term)
         )
-      )
-    (* sum_scope_enabled := false *)
+         );
+    sum_scope_enabled := false
 
+         (*
   let%expect_test _ =
-    (* print_sum_scope (fun () -> ln (of_float 0.5)); *)
+    print_sum_scope (fun () -> ln (of_float 0.5));
     print_sum_scope (fun () -> cos (of_float 0.5));
     [%expect]
-*)
+         *)
   end)
 ;;
