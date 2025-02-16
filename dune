@@ -1,0 +1,8 @@
+(library
+ (name constructive_reals)
+ (public_name constructive_reals)
+ (inline_tests)
+ (libraries base fmt zarith)
+ (preprocess
+  (pps ppx_jane))
+ (wrapped false))
