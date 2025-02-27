@@ -5,4 +5,10 @@
  (libraries base fmt zarith)
  (preprocess
   (pps ppx_jane))
- (wrapped false))
+ (wrapped false)
+ (modules constructive_reals))
+
+(executable
+ (name calculator)
+ (modules calculator)
+ (libraries base stdio constructive_reals))
