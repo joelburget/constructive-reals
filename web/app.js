@@ -99,6 +99,37 @@ async function ensureId(card) {
 /* Compare the float's decimal string against the constructive real's.
    Characters past the CR string's length can't be checked at this
    precision, so they're marked "unverified" rather than wrong. */
+/* Parse a decimal string (plain or scientific notation) into
+   sign * digits * 10^exp, all exact. */
+function parseDecimal(s) {
+  const m = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/.exec(s);
+  if (!m) return null;
+  const frac = m[3] || '';
+  return {
+    sign: m[1] ? -1n : 1n,
+    digits: m[2] + frac,
+    exp: (m[4] ? parseInt(m[4], 10) : 0) - frac.length,
+  };
+}
+
+/* The value as a BigInt scaled by 10^scale, truncating digits below that. */
+function scaledBigInt(d, scale) {
+  let v = BigInt(d.digits);
+  const e = d.exp + scale;
+  if (e >= 0) v *= 10n ** BigInt(e);
+  else v /= 10n ** BigInt(-e);
+  return d.sign * v;
+}
+
+/* Format absDiff * 10^-scale as e.g. "4.0e-17", exactly enough for a
+   verdict. String-based so enormous differences can't overflow a double. */
+function formatErr(absDiff, scale) {
+  const s = absDiff.toString();
+  const mant = s[0] + '.' + (s[1] || '0');
+  const e = s.length - 1 - scale;
+  return e === 0 ? mant : `${mant}e${e > 0 ? '+' : ''}${e}`;
+}
+
 function compareValues(crValue, floatValue) {
   const n = Math.min(crValue.length, floatValue.length);
   let i = 0;
@@ -106,26 +137,59 @@ function compareValues(crValue, floatValue) {
 
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const okPart = esc(floatValue.slice(0, i));
+  const tail = i < floatValue.length;
+  const wrongHtml = okPart + '<span class="wrong">' + esc(floatValue.slice(i)) + '</span>';
 
-  if (i < floatValue.length && i < crValue.length) {
-    // Confirmed divergence within the compared window.
-    const digitsOk = (floatValue.slice(0, i).match(/[0-9]/g) || []).length;
-    return {
-      html: okPart + '<span class="wrong">' + esc(floatValue.slice(i)) + '</span>',
-      verdict: digitsOk > 0
-        ? `diverges after ${digitsOk} digit${digitsOk === 1 ? '' : 's'}`
-        : 'completely different',
-      cls: 'bad',
-    };
+  const fd = parseDecimal(floatValue);
+  if (!fd) {
+    // NaN / Infinity / error text — nothing numeric to compare against.
+    const verdict = floatValue.includes('Infinity')
+      ? 'the float overflowed to infinity'
+      : floatValue === 'NaN' ? 'the float computation produced NaN (not a number at all)'
+      : '';
+    return { html: '<span class="wrong">' + esc(floatValue) + '</span>', verdict, cls: 'bad' };
   }
-  if (i < floatValue.length) {
+
+  /* Compare numerically, not just textually: a float like 1.2e-16 for a true
+     value of 0 shares no characters with "0.0000…" yet is an excellent
+     absolute approximation. scale = decimal places the CR display carries. */
+  const scale = (crValue.split('.')[1] || '').length;
+  const diff = scaledBigInt(fd, scale) - scaledBigInt(parseDecimal(crValue), scale);
+  const absDiff = diff < 0n ? -diff : diff;
+
+  if (absDiff <= 1n) {
+    if (tail) {
+      return {
+        html: okPart + '<span class="unverified">' + esc(floatValue.slice(i)) + '</span>',
+        verdict: 'grey digits are beyond the computed precision — raise the digits slider to check them',
+        cls: '',
+      };
+    }
+    return { html: okPart, verdict: 'matches at this precision ✓', cls: 'good' };
+  }
+
+  // The CR display itself is only exact to ±1 in its last digit, so don't
+  // over-claim a tiny difference.
+  if (absDiff < 10n) {
     return {
-      html: okPart + '<span class="unverified">' + esc(floatValue.slice(i)) + '</span>',
-      verdict: 'grey digits are beyond the computed precision — raise the digits slider to check them',
+      html: wrongHtml,
+      verdict: 'differs around the last displayed digit — raise the digits slider to resolve',
       cls: '',
     };
   }
-  return { html: okPart, verdict: 'matches at this precision ✓', cls: 'good' };
+
+  const err = formatErr(absDiff, scale);
+  const digitsOk = (floatValue.slice(0, i).match(/[0-9]/g) || []).length;
+  const places = scale - absDiff.toString().length; // decimal places still correct
+  let verdict;
+  if (digitsOk > 0) {
+    verdict = `diverges after ${digitsOk} digit${digitsOk === 1 ? '' : 's'} — off by ≈ ${err}`;
+  } else if (places >= 1) {
+    verdict = `off by ≈ ${err}: every printed digit differs, yet it agrees with the true value to ${places} decimal place${places === 1 ? '' : 's'}`;
+  } else {
+    verdict = `completely different — off by ≈ ${err}`;
+  }
+  return { html: wrongHtml, verdict, cls: 'bad' };
 }
 
 function refreshComparison(card) {
