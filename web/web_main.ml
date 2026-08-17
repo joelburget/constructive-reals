@@ -57,16 +57,50 @@ let eval_float (s : Js.js_string Js.t) =
     ok_result [| ("value", js_str (Calc_core.Float_evaluator.shortest_string f)) |]
   with e -> error_result (exn_message e)
 
-(* repr(id) -> {ok, pp, debug} — the term's structure (pretty-printed
-   expression) and its internal state including cached approximations. *)
+(* Size of the term if printed as a tree, i.e. with shared subterms expanded.
+   Saturates at limit+1: terms like exp(1000) are built by repeated squaring
+   of shared nodes, so their expanded size is exponential (2^depth) even
+   though the DAG is tiny — printing them would build gigabyte strings. *)
+let expanded_size (t : Constructive_reals.t) ~(limit : int) : int =
+  let seen : (Constructive_reals.t * int) list ref = ref [] in
+  let rec go t =
+    match List.find !seen ~f:(fun (t', _) -> phys_equal t t') with
+    | Some (_, s) -> s
+    | None ->
+        let children =
+          match Constructive_reals.view t with
+          | IntV _ | PiV -> []
+          | AssumedIntV a | ShiftedV (a, _) | NegV a | InvV a
+          | PrescaledExpV a | PrescaledCosV a | PrescaledLnV a
+          | PrescaledAsinV a | SqrtV a -> [ a ]
+          | AddV (a, b) | MultV (a, b) -> [ a; b ]
+          | SelectV (s, a, b) -> [ s; a; b ]
+        in
+        let s =
+          List.fold children ~init:1 ~f:(fun acc c ->
+              Int.min (acc + go c) (limit + 1))
+        in
+        seen := (t, s) :: !seen;
+        s
+  in
+  go t
+
+let pp_limit = 2000
+
+(* repr(id) -> {ok, pp} — the term pretty-printed as an expression, when
+   that's printable at all. *)
 let repr (id : int) =
   match Hashtbl.find table id with
   | None -> error_result "unknown expression id"
   | Some cr ->
-      ok_result
-        [| ("pp", js_str (Fmt.str "%a" Constructive_reals.pp cr))
-         ; ("debug", js_str (Constructive_reals.debug_to_string cr))
-        |]
+      let pp_str =
+        if expanded_size cr ~limit:pp_limit <= pp_limit
+        then Fmt.str "%a" Constructive_reals.pp cr
+        else
+          "(too large to pretty-print — the term is a small graph with heavy \
+           sharing; see the DAG below)"
+      in
+      ok_result [| ("pp", js_str pp_str) |]
 
 (* A cached approximation (max_appr, min_prec) as a double, i.e. roughly
    max_appr * 2^min_prec. max_appr can be far larger than a double, so
