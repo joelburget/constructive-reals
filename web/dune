@@ -6,4 +6,4 @@
 ; `dune build @site` assembles the complete static site in _build/default/web/
 (alias
  (name site)
- (deps index.html style.css app.js web_main.bc.js))
+ (deps index.html style.css app.js worker.js web_main.bc.js))

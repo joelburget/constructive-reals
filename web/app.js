@@ -1,15 +1,17 @@
-/* UI glue for the constructive reals demo. The OCaml side (compiled with
-   js_of_ocaml) exposes globalThis.crCalc:
+/* UI glue for the constructive reals demo. All computation happens in a Web
+   Worker (worker.js) hosting the js_of_ocaml build, which exposes:
      parse(str)        -> {ok, id} | {ok: false, error}
      evalCr(id, n)     -> {ok, value}
      evalFloat(str)    -> {ok, value}
      repr(id)          -> {ok, pp, debug}
+     dag(id)           -> {ok, root, nodes}
+   Terms live in the worker's registry; if the worker is terminated (cancel),
+   cards transparently re-parse their expression in the fresh worker.
 */
 'use strict';
 
-const calc = globalThis.crCalc;
-
-const DIGIT_STEPS = [20, 50, 100, 300, 1000];
+const DIGIT_STEPS = [10, 20, 50, 100, 300, 1000, 3000, 10000];
+const INITIAL_STEP = 1; // 20 digits
 
 const EXAMPLES = [
   { expr: '0.1 + 0.2', note: 'the classic' },
@@ -24,11 +26,79 @@ const resultsEl = document.getElementById('results');
 const inputEl = document.getElementById('expr');
 const formEl = document.getElementById('repl-form');
 const chipsEl = document.getElementById('chips');
+const busyEl = document.getElementById('busy');
+
+/* ---------- worker plumbing ---------- */
+
+let worker = null;
+let workerGen = 0;
+let nextReq = 0;
+const pending = new Map();
+
+function startWorker() {
+  worker = new Worker('worker.js');
+  workerGen += 1;
+  worker.onmessage = (e) => {
+    const p = pending.get(e.data.reqId);
+    if (p) {
+      pending.delete(e.data.reqId);
+      p.resolve(e.data.result);
+    }
+    updateBusy();
+  };
+}
+
+function call(method, ...args) {
+  return new Promise((resolve, reject) => {
+    const reqId = nextReq++;
+    pending.set(reqId, { resolve, reject });
+    worker.postMessage({ reqId, method, args });
+    updateBusy();
+  });
+}
+
+function cancelAll() {
+  worker.terminate();
+  for (const p of pending.values()) p.reject(new Error('cancelled'));
+  pending.clear();
+  startWorker();
+  updateBusy();
+}
+
+/* Show the busy bar only if a computation is still running after a beat, so
+   quick evaluations don't flicker. */
+let busyTimer = null;
+function updateBusy() {
+  if (pending.size > 0) {
+    if (!busyTimer && busyEl.hidden) {
+      busyTimer = setTimeout(() => {
+        busyTimer = null;
+        if (pending.size > 0) busyEl.hidden = false;
+      }, 300);
+    }
+  } else {
+    if (busyTimer) { clearTimeout(busyTimer); busyTimer = null; }
+    busyEl.hidden = true;
+  }
+}
+
+document.getElementById('cancel').addEventListener('click', cancelAll);
+
+/* The worker's term registry dies with it on cancel; re-parse on demand. */
+async function ensureId(card) {
+  if (Number(card.dataset.gen) === workerGen) return Number(card.dataset.id);
+  const parsed = await call('parse', card.dataset.expr);
+  if (!parsed.ok) throw new Error(String(parsed.error));
+  card.dataset.id = String(parsed.id);
+  card.dataset.gen = String(workerGen);
+  return parsed.id;
+}
+
+/* ---------- comparison rendering ---------- */
 
 /* Compare the float's decimal string against the constructive real's.
-   Returns HTML for the float pane plus a verdict. Characters past the CR
-   string's length can't be checked at this precision, so they're marked
-   "unverified" rather than wrong. */
+   Characters past the CR string's length can't be checked at this
+   precision, so they're marked "unverified" rather than wrong. */
 function compareValues(crValue, floatValue) {
   const n = Math.min(crValue.length, floatValue.length);
   let i = 0;
@@ -49,10 +119,9 @@ function compareValues(crValue, floatValue) {
     };
   }
   if (i < floatValue.length) {
-    // Float has more digits than we've computed — not yet checkable.
     return {
       html: okPart + '<span class="unverified">' + esc(floatValue.slice(i)) + '</span>',
-      verdict: 'grey digits are beyond the computed precision — ask for more digits to check them',
+      verdict: 'grey digits are beyond the computed precision — raise the digits slider to check them',
       cls: '',
     };
   }
@@ -63,6 +132,7 @@ function refreshComparison(card) {
   const crValue = card.dataset.crValue;
   const floatValue = card.dataset.floatValue;
   card.querySelector('.cr-value').textContent = crValue;
+  if (!floatValue) return; // float result hasn't arrived yet
   const cmp = compareValues(crValue, floatValue);
   card.querySelector('.float-value').innerHTML = cmp.html;
   const verdict = card.querySelector('.verdict');
@@ -70,32 +140,151 @@ function refreshComparison(card) {
   verdict.className = 'verdict ' + cmp.cls;
 }
 
-function refreshRepr(card) {
-  const r = calc.repr(Number(card.dataset.id));
-  if (!r.ok) return;
-  card.querySelector('.repr .pp').textContent = String(r.pp);
-  card.querySelector('.repr .debug').textContent = String(r.debug);
+/* ---------- DAG rendering ---------- */
+
+const OP_INFO = {
+  int: { label: (n) => n.arg, desc: 'integer constant' },
+  assumed_int: { label: () => 'assumed int', desc: 'assumed to be an integer — never evaluated past the decimal point' },
+  add: { label: () => '+', desc: 'sum of two reals' },
+  shift: { label: (n) => `× 2^${n.arg}`, desc: 'shift: multiplication by a power of two' },
+  neg: { label: () => 'negate', desc: 'negation' },
+  select: { label: () => 'select', desc: 'chooses between two reals based on the sign of a selector' },
+  mult: { label: () => '×', desc: 'product of two reals' },
+  inv: { label: () => '1 ∕ x', desc: 'reciprocal' },
+  exp: { label: () => 'exp', desc: 'exponential (argument prescaled for fast convergence)' },
+  cos: { label: () => 'cos', desc: 'cosine (argument prescaled for fast convergence)' },
+  ln: { label: () => 'ln', desc: 'natural log (argument prescaled for fast convergence)' },
+  asin: { label: () => 'asin', desc: 'arcsine (argument prescaled for fast convergence)' },
+  sqrt: { label: () => '√', desc: 'square root (Newton iteration)' },
+  pi: { label: () => 'π', desc: 'Gauss–Legendre pi' },
+};
+
+function abbreviate(digits, keep = 24) {
+  if (digits.length <= keep) return digits;
+  const half = Math.floor(keep / 2);
+  return `${digits.slice(0, half)}…${digits.slice(-half)} (${digits.replace('-', '').length} digits)`;
 }
 
-function moreDigits(card) {
-  const button = card.querySelector('.more-digits');
-  const stepIndex = Number(card.dataset.stepIndex) + 1;
-  if (stepIndex >= DIGIT_STEPS.length) return;
-  const digits = DIGIT_STEPS[stepIndex];
-  const r = calc.evalCr(Number(card.dataset.id), digits);
-  if (!r.ok) {
-    card.querySelector('.verdict').textContent = 'error: ' + r.error;
-    return;
+/* Render the term DAG as a nested tree. Shared subterms render their
+   children once; later occurrences become a reference marker. */
+function renderDag(container, dagData) {
+  // Remember which nodes were collapsed across re-renders.
+  const closed = new Set(
+    [...container.querySelectorAll('details.dag-node:not([open])')]
+      .map((d) => d.dataset.path)
+  );
+  container.textContent = '';
+
+  const nodes = dagData.nodes;
+  const renderedIds = new Set();
+
+  function renderNode(id, path) {
+    const node = nodes[id];
+    const info = OP_INFO[node.op] || { label: () => node.op, desc: node.op };
+
+    const line = document.createElement('span');
+    line.className = 'dag-line';
+    const opEl = document.createElement('span');
+    opEl.className = 'dag-op';
+    opEl.textContent = info.label(node);
+    opEl.title = info.desc;
+    line.append(opEl);
+
+    const apprEl = document.createElement('span');
+    if (node.valid) {
+      apprEl.className = 'dag-appr';
+      apprEl.textContent = ` ≈ ${node.approx}`;
+      apprEl.title = `cached approximation: ${abbreviate(node.maxAppr, 40)} × 2^${node.minPrec}`;
+    } else {
+      apprEl.className = 'dag-appr dag-unevaluated';
+      apprEl.textContent = ' — not evaluated yet';
+      apprEl.title = 'this node has no cached approximation: nothing has demanded its value';
+    }
+    line.append(apprEl);
+
+    if (renderedIds.has(id)) {
+      const wrap = document.createElement('div');
+      wrap.className = 'dag-leaf dag-shared';
+      line.append(' (shared node, shown above)');
+      wrap.append(line);
+      return wrap;
+    }
+    renderedIds.add(id);
+
+    if (node.children.length === 0) {
+      const wrap = document.createElement('div');
+      wrap.className = 'dag-leaf';
+      wrap.append(line);
+      return wrap;
+    }
+
+    const details = document.createElement('details');
+    details.className = 'dag-node';
+    details.dataset.path = path;
+    details.open = !closed.has(path);
+    const summary = document.createElement('summary');
+    summary.append(line);
+    details.append(summary);
+    const kids = document.createElement('div');
+    kids.className = 'dag-children';
+    node.children.forEach((childId, i) => {
+      kids.append(renderNode(childId, `${path}.${i}`));
+    });
+    details.append(kids);
+    return details;
   }
-  card.dataset.stepIndex = String(stepIndex);
-  card.dataset.crValue = String(r.value);
-  refreshComparison(card);
-  refreshRepr(card);
-  if (stepIndex + 1 >= DIGIT_STEPS.length) {
-    button.disabled = true;
-    button.textContent = `${digits} digits`;
-  } else {
-    button.textContent = `more digits (${DIGIT_STEPS[stepIndex + 1]})`;
+
+  container.append(renderNode(dagData.root, 'r'));
+}
+
+async function refreshRepr(card) {
+  const id = await ensureId(card);
+  const [r, d] = await Promise.all([call('repr', id), call('dag', id)]);
+  if (r.ok) card.querySelector('.repr .pp').textContent = String(r.pp);
+  if (d.ok) renderDag(card.querySelector('.repr .dag'), d);
+}
+
+/* ---------- cards ---------- */
+
+function setStatus(card, text, isError) {
+  const verdict = card.querySelector('.verdict');
+  verdict.textContent = text;
+  verdict.className = 'verdict' + (isError ? ' bad' : '');
+}
+
+/* Snap the slider display back to the last precision that actually
+   computed, so a failed/cancelled request doesn't leave the thumb lying. */
+function resetSlider(card) {
+  const goodStep = card.dataset.goodStep;
+  if (goodStep === undefined || goodStep === '') return;
+  card.querySelector('.digits-slider').value = goodStep;
+  card.querySelector('.digits-value').textContent =
+    String(DIGIT_STEPS[Number(goodStep)]);
+}
+
+async function setDigits(card, stepIndex) {
+  const digits = DIGIT_STEPS[stepIndex];
+  const seq = Number(card.dataset.seq || 0) + 1;
+  card.dataset.seq = String(seq);
+  setStatus(card, `computing ${digits} digits…`, false);
+  try {
+    const id = await ensureId(card);
+    const r = await call('evalCr', id, digits);
+    if (Number(card.dataset.seq) !== seq) return; // superseded by a newer request
+    if (!r.ok) {
+      setStatus(card, 'error: ' + r.error, true);
+      resetSlider(card);
+      return;
+    }
+    card.dataset.goodStep = String(stepIndex);
+    card.dataset.crValue = String(r.value);
+    refreshComparison(card);
+    await refreshRepr(card);
+  } catch (err) {
+    if (Number(card.dataset.seq) === seq) {
+      setStatus(card, String(err.message || err) + ' — move the slider to retry', true);
+      resetSlider(card);
+    }
   }
 }
 
@@ -112,38 +301,41 @@ function errorCard(expr, message) {
   return card;
 }
 
-function evaluate(expr) {
-  const parsed = calc.parse(expr);
+async function evaluate(expr) {
+  let parsed;
+  try {
+    parsed = await call('parse', expr);
+  } catch (err) {
+    resultsEl.prepend(errorCard(expr, String(err.message || err)));
+    return;
+  }
   if (!parsed.ok) {
     resultsEl.prepend(errorCard(expr, String(parsed.error)));
     return;
   }
-  const id = parsed.id;
-  const crResult = calc.evalCr(id, DIGIT_STEPS[0]);
-  if (!crResult.ok) {
-    resultsEl.prepend(errorCard(expr, String(crResult.error)));
-    return;
-  }
-  const floatResult = calc.evalFloat(expr);
-  const floatValue = floatResult.ok ? String(floatResult.value) : 'error: ' + floatResult.error;
 
   const card = document.createElement('article');
   card.className = 'card';
-  card.dataset.id = String(id);
-  card.dataset.stepIndex = '0';
-  card.dataset.crValue = String(crResult.value);
-  card.dataset.floatValue = floatValue;
+  card.dataset.expr = expr;
+  card.dataset.id = String(parsed.id);
+  card.dataset.gen = String(workerGen);
+  card.dataset.crValue = '';
+  card.dataset.floatValue = '';
   card.innerHTML = `
     <div class="card-expr"></div>
     <div class="panes">
       <div class="pane">
         <div class="pane-label">constructive real</div>
-        <code class="value cr-value"></code>
-        <button class="more-digits">more digits (${DIGIT_STEPS[1]})</button>
+        <code class="value cr-value">…</code>
+        <label class="digits-control">
+          digits: <span class="digits-value"></span>
+          <input type="range" class="digits-slider"
+                 min="0" max="${DIGIT_STEPS.length - 1}" value="${INITIAL_STEP}">
+        </label>
       </div>
       <div class="pane">
         <div class="pane-label">64-bit float (what JavaScript computes)</div>
-        <code class="value float-value"></code>
+        <code class="value float-value">…</code>
         <div class="verdict"></div>
       </div>
     </div>
@@ -151,15 +343,34 @@ function evaluate(expr) {
       <summary>How is this represented?</summary>
       <div class="repr-label">expression (pretty-printed)</div>
       <div class="pp"></div>
-      <div class="repr-label">internal term, with cached approximations — watch these change as you ask for more digits</div>
-      <pre class="debug"></pre>
+      <div class="repr-label">term DAG with cached approximations — watch them change as you raise the digits slider</div>
+      <div class="dag"></div>
     </details>`;
   card.querySelector('.card-expr').textContent = expr;
-  card.querySelector('.more-digits').addEventListener('click', () => moreDigits(card));
-  refreshComparison(card);
-  refreshRepr(card);
+
+  const slider = card.querySelector('.digits-slider');
+  const digitsValue = card.querySelector('.digits-value');
+  digitsValue.textContent = String(DIGIT_STEPS[INITIAL_STEP]);
+  slider.addEventListener('input', () => {
+    digitsValue.textContent = String(DIGIT_STEPS[Number(slider.value)]);
+  });
+  slider.addEventListener('change', () => setDigits(card, Number(slider.value)));
+
   resultsEl.prepend(card);
+
+  call('evalFloat', expr)
+    .then((floatResult) => {
+      card.dataset.floatValue = floatResult.ok
+        ? String(floatResult.value)
+        : 'error: ' + floatResult.error;
+      if (card.dataset.crValue) refreshComparison(card);
+    })
+    .catch(() => {});
+
+  await setDigits(card, INITIAL_STEP);
 }
+
+/* ---------- wiring ---------- */
 
 formEl.addEventListener('submit', (ev) => {
   ev.preventDefault();
@@ -181,5 +392,6 @@ for (const { expr, note } of EXAMPLES) {
   chipsEl.append(chip);
 }
 
+startWorker();
 // Start with the flagship example on screen.
 evaluate('0.1 + 0.2');

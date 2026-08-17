@@ -1463,3 +1463,44 @@ let%test_module "Calculator" =
          *)
   end)
 ;;
+
+(* A read-only view of a term's structure and cached approximation, so
+   external code (e.g. the web demo's DAG visualization) can walk the term
+   graph without access to the representation. *)
+type view =
+  | IntV of Z.t
+  | AssumedIntV of t
+  | AddV of t * t
+  | ShiftedV of t * int32
+  | NegV of t
+  | SelectV of t * t * t
+  | MultV of t * t
+  | InvV of t
+  | PrescaledExpV of t
+  | PrescaledCosV of t
+  | PrescaledLnV of t
+  | PrescaledAsinV of t
+  | SqrtV of t
+  | PiV
+
+let view { cr; _ } =
+  match cr with
+  | IntCR i -> IntV i
+  | AssumedIntCR op -> AssumedIntV op
+  | AddCR (op1, op2) -> AddV (op1, op2)
+  | ShiftedCR (op, n) -> ShiftedV (op, n)
+  | NegCR op -> NegV op
+  | SelectCR { selector; op1; op2; _ } -> SelectV (selector, op1, op2)
+  | MultCR (op1, op2) -> MultV (op1, op2)
+  | InvCR op -> InvV op
+  | PrescaledExpCR op -> PrescaledExpV op
+  | PrescaledCosCR op -> PrescaledCosV op
+  | PrescaledLnCR op -> PrescaledLnV op
+  | PrescaledAsinCR op -> PrescaledAsinV op
+  | SqrtCR op -> SqrtV op
+  | GlPiCR -> PiV
+;;
+
+let approximation { base; _ } =
+  if base.appr_valid then Some (base.max_appr, base.min_prec) else None
+;;

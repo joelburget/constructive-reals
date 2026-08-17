@@ -53,3 +53,30 @@ val e : t
 (** A number that may not have been completely evaluated but is assumed to be an integer,
     * so is never evaluated beyond the decimal point. *)
 val assume_int : t -> t
+
+(** A read-only view of a term's structure, for walking the term graph (e.g.
+    to visualize it). Constructor names mirror the internal representation;
+    the [Prescaled*] operations wrap arguments already reduced to a
+    convergence-friendly range. *)
+type view =
+  | IntV of Z.t
+  | AssumedIntV of t
+  | AddV of t * t
+  | ShiftedV of t * int32
+  | NegV of t
+  | SelectV of t * t * t
+  | MultV of t * t
+  | InvV of t
+  | PrescaledExpV of t
+  | PrescaledCosV of t
+  | PrescaledLnV of t
+  | PrescaledAsinV of t
+  | SqrtV of t
+  | PiV
+
+val view : t -> view
+
+(** The term's cached approximation, if it has been evaluated:
+    [Some (max_appr, min_prec)] means the value is within one unit of
+    [max_appr * 2^min_prec]. *)
+val approximation : t -> (Z.t * int32) option
