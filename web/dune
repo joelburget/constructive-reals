@@ -1,0 +1,9 @@
+(executable
+ (name web_main)
+ (modes js)
+ (libraries base zarith zarith_stubs_js js_of_ocaml fmt constructive_reals calc_core))
+
+; `dune build @site` assembles the complete static site in _build/default/web/
+(alias
+ (name site)
+ (deps index.html style.css app.js web_main.bc.js))

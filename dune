@@ -8,7 +8,13 @@
  (wrapped false)
  (modules constructive_reals))
 
+(library
+ (name calc_core)
+ (libraries base zarith constructive_reals)
+ (wrapped false)
+ (modules calc_core))
+
 (executable
  (name calculator)
  (modules calculator)
- (libraries base stdio zarith constructive_reals))
+ (libraries base stdio constructive_reals calc_core))

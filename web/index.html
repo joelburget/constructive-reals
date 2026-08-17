@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Constructive Reals — a calculator that never rounds</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Constructive Reals</h1>
+    <p class="tagline">
+      A calculator that never rounds. Every digit it prints is correct — ask
+      for more and it computes them. Compare it against what ordinary 64-bit
+      floating point (the numbers JavaScript uses) produces.
+    </p>
+    <p class="tagline">
+      An OCaml implementation of Hans-J. Boehm's
+      <a href="https://dl.acm.org/doi/pdf/10.1145/3385412.3386037">Towards an
+      API for the Real Numbers</a>, running in your browser via js_of_ocaml.
+    </p>
+  </header>
+
+  <main>
+    <section id="calculator">
+      <div class="chips" id="chips"></div>
+      <form id="repl-form" autocomplete="off">
+        <input id="expr" type="text" spellcheck="false"
+               placeholder="Try  0.1 + 0.2   or   sqrt(2)*sqrt(2) - 2">
+        <button type="submit">evaluate</button>
+      </form>
+      <p class="hint">
+        Operators <code>+ - * / ( )</code> · functions <code>sin cos tan asin
+        acos atan exp ln sqrt abs max min</code> · constants <code>pi e</code>
+      </p>
+      <div id="results"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      <a href="https://github.com/joelburget/constructive-reals">Source on
+      GitHub</a> · based on the paper by Hans-J. Boehm, which also powers the
+      Android calculator.
+    </p>
+  </footer>
+
+  <script src="web_main.bc.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
