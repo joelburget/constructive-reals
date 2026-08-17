@@ -133,11 +133,26 @@ end
 module Evaluator = struct
   open Parser
 
+  (* Parse a decimal literal exactly: "123.45" is 12345/100, not the nearest
+     float. Rounding through a float here would make the calculator inherit
+     exactly the errors it's meant to avoid. *)
+  let of_decimal_string (s : string) : Constructive_reals.t =
+    let exact whole frac =
+      let digits = of_bigint (Z.of_string (whole ^ frac)) in
+      let denom = of_bigint (Z.pow (Z.of_int 10) (String.length frac)) in
+      digits / denom
+    in
+    try
+      match String.split s ~on:'.' with
+      | [ whole ] -> exact whole ""
+      | [ ""; "" ] -> failwith "empty"
+      | [ whole; frac ] -> exact whole frac
+      | _ -> failwith "too many dots"
+    with _ -> failwith ("Invalid number: " ^ s)
+
   let eval expr =
     let rec eval_expr = function
-      | Num n -> (
-          try of_float (Float.of_string n)
-          with _ -> failwith ("Invalid number: " ^ n))
+      | Num n -> of_decimal_string n
       | Var "pi" -> pi
       | Var "e" -> e
       | Var name -> failwith ("Unknown variable: " ^ name)

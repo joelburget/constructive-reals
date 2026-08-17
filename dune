@@ -11,4 +11,4 @@
 (executable
  (name calculator)
  (modules calculator)
- (libraries base stdio constructive_reals))
+ (libraries base stdio zarith constructive_reals))
