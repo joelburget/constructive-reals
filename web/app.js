@@ -247,12 +247,24 @@ function renderDag(container, dagData) {
     const node = nodes[id];
     const info = OP_INFO[node.op] || { label: () => node.op, desc: node.op };
 
+    /* A product of a node with itself is a squaring — the workhorse of the
+       exp/ln prescaling chains. Render it as a unary "square" instead of a
+       "×" with a duplicate-child marker row. */
+    let label = info.label(node);
+    let desc = info.desc;
+    let children = node.children;
+    if (node.op === 'mult' && children.length === 2 && children[0] === children[1]) {
+      label = 'square';
+      desc = 'squaring: a product whose two factors are the same shared node';
+      children = [children[0]];
+    }
+
     const line = document.createElement('span');
     line.className = 'dag-line';
     const opEl = document.createElement('span');
     opEl.className = 'dag-op';
-    opEl.textContent = info.label(node);
-    opEl.title = info.desc;
+    opEl.textContent = label;
+    opEl.title = desc;
     line.append(opEl);
 
     const apprEl = document.createElement('span');
@@ -276,7 +288,7 @@ function renderDag(container, dagData) {
     }
     renderedIds.add(id);
 
-    if (node.children.length === 0) {
+    if (children.length === 0) {
       const wrap = document.createElement('div');
       wrap.className = 'dag-leaf';
       wrap.append(line);
@@ -291,8 +303,11 @@ function renderDag(container, dagData) {
     summary.append(line);
     details.append(summary);
     const kids = document.createElement('div');
-    kids.className = 'dag-children';
-    node.children.forEach((childId, i) => {
+    // Single-child chains render at the same indentation: the prescaling
+    // pipelines (dozens of squarings/halvings in a row) read top-to-bottom
+    // instead of staircasing off the right edge. Branches still indent.
+    kids.className = children.length === 1 ? 'dag-children dag-flat' : 'dag-children';
+    children.forEach((childId, i) => {
       kids.append(renderNode(childId, `${path}.${i}`));
     });
     details.append(kids);

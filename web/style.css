@@ -194,13 +194,19 @@ code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; fo
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.82rem;
   line-height: 1.6;
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 26rem;
 }
 .dag details, .dag .dag-leaf { margin: 0; }
 .dag .dag-children {
   margin-left: 0.55rem;
   padding-left: 0.7rem;
   border-left: 1px solid var(--card-border);
+}
+.dag .dag-children.dag-flat {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
 }
 .dag summary { cursor: pointer; list-style-position: inside; }
 .dag .dag-leaf { padding-left: 1.35rem; }
