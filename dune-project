@@ -5,22 +5,27 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github joelburget/constructive-reals))
 
-(authors "Author Name")
+(authors "Joel Burget")
 
-(maintainers "Maintainer Name")
+(maintainers "Joel Burget")
 
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(license Apache-2.0)
 
 (package
  (name constructive_reals)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
-
-; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
+ (synopsis "Constructive real numbers")
+ (description
+  "OCaml implementation of Hans-J. Boehm's 'Towards an API for the Real Numbers': a real number type whose approximations are computed lazily to any requested precision, with decidable equality in common cases.")
+ (depends
+  ocaml
+  dune
+  base
+  stdio
+  fmt
+  zarith
+  ppx_jane
+  js_of_ocaml
+  js_of_ocaml-compiler
+  zarith_stubs_js))

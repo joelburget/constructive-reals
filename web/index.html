@@ -39,6 +39,101 @@
       </div>
       <div id="results"></div>
     </section>
+
+    <section class="explain">
+      <h2>What is a constructive real?</h2>
+      <p>
+        A floating-point number is a snapshot: 53 bits of mantissa, fixed at
+        the moment each operation rounds. A constructive (or computable) real
+        is a <em>program</em>: a function that, given a precision
+        <code>p</code>, returns an integer <code>n</code> such that
+        <code>n·2<sup>p</sup></code> is within <code>2<sup>p</sup></code> of
+        the true value. The number itself is never rounded, because the number
+        itself is never "computed" — only approximations to it are, and you
+        can always ask for a better one. That's what the digits slider does:
+        every position re-queries the same number at higher precision, and
+        every digit shown is guaranteed correct.
+      </p>
+
+      <h2>How results are represented</h2>
+      <p>
+        When you type <code>sqrt(2)*sqrt(2) - 2</code>, no arithmetic happens
+        at first. The calculator builds a term graph — multiplication node,
+        square-root nodes, integer leaves — which you can inspect under
+        "How is this represented?" on each result. Evaluation is lazy and
+        demand-driven: asking the root for <code>p</code> bits makes each node
+        ask its children for enough extra precision to keep its own error
+        bound, all the way down to the leaves.
+      </p>
+      <p>
+        Each node also memoizes the best approximation it has produced so far
+        (shown as <code>≈ value</code> in the graph; hover to see the raw
+        scaled integer). Ask for more digits and the caches deepen; ask for
+        fewer and the cached answer is reused instantly. Terms that nothing
+        has demanded yet are marked <em>not evaluated</em> — for instance, an
+        expression's structure can be built and displayed without ever
+        computing a single digit.
+      </p>
+
+      <h2>Where floats go wrong</h2>
+      <p>
+        Every float operation rounds to 53 bits, and the errors compound in
+        characteristic ways, all reproducible above:
+      </p>
+      <ul>
+        <li><strong>Representation error</strong> — <code>0.1</code> has no
+          finite binary expansion, so <code>0.1 + 0.2</code> starts from two
+          already-wrong inputs and the sum exposes it.</li>
+        <li><strong>Catastrophic cancellation</strong> — subtracting nearly
+          equal quantities, as in <code>sqrt(2)*sqrt(2) - 2</code>, cancels
+          the correct leading digits and promotes the rounding noise to the
+          front of the answer.</li>
+        <li><strong>Absorption</strong> — <code>10<sup>16</sup> + 1</code>
+          rounds back to <code>10<sup>16</sup></code>: the 1 is smaller than
+          one unit in the last place, so it simply vanishes.</li>
+      </ul>
+      <p>
+        The float column isn't a simulation, by the way: this page compiles
+        the calculator to JavaScript, so the float result is computed with
+        actual JavaScript numbers — the same IEEE 754 doubles nearly every
+        language uses.
+      </p>
+
+      <h2>The catch: equality</h2>
+      <p>
+        The price of never rounding is that equality of two constructive
+        reals is undecidable. If two computations happen to denote the same
+        number, comparing them digit-by-digit produces agreement forever and
+        never terminates — you can't distinguish "equal" from "differs at some
+        digit you haven't reached yet". So the API offers comparison up to a
+        tolerance, and an equality that is only safe when the numbers are
+        known to be unequal. Hans-J. Boehm's paper, which this library
+        implements, shows how to recover <em>decidable</em> equality for the
+        common cases by additionally tracking numbers symbolically — the trick
+        that makes a real-number type practical for a calculator, where
+        <code>sqrt(2)*sqrt(2) - 2</code> should display exactly
+        <code>0</code>. (Relatedly: dividing by an exact zero here doesn't
+        hang searching for a nonzero digit — it gives up with a precision
+        overflow once the sign search passes a depth bound.)
+      </p>
+
+      <h2>This isn't just a demo trick</h2>
+      <p>
+        This representation ships in Google's Android calculator app, with
+        over a billion installs: there, scrolling a result sideways drives the
+        precision demand, and users never see a wrong digit. The design is
+        described in
+        <a href="https://dl.acm.org/doi/pdf/10.1145/3385412.3386037">Towards
+        an API for the Real Numbers</a> (Boehm, PLDI 2020); there's also a
+        <a href="https://x.com/ChadNauseam/status/1890889465322786878">nice
+        Twitter exposition</a> of the main ideas. This page runs an
+        <a href="https://github.com/joelburget/constructive-reals">OCaml
+        implementation</a> of the paper, compiled to JavaScript with
+        js_of_ocaml (bignums via zarith_stubs_js), with all evaluation in a
+        Web Worker so the page stays responsive while you ask π for 10,000
+        digits.
+      </p>
+    </section>
   </main>
 
   <footer>

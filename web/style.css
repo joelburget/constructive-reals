@@ -231,4 +231,11 @@ details.repr summary:hover { color: var(--accent); }
   word-break: break-all;
 }
 
+/* --- explanation sections --- */
+.explain { max-width: 44rem; }
+.explain p, .explain li { color: var(--fg); }
+.explain ul { padding-left: 1.3rem; }
+.explain li { margin: 0.4rem 0; }
+.explain sup { font-size: 0.7em; }
+
 footer { margin-top: 3rem; font-size: 0.85rem; color: var(--muted); }
