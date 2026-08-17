@@ -19,6 +19,7 @@ const EXAMPLES = [
   { expr: 'sin(pi)', note: 'should be exactly 0' },
   { expr: '10000000000000000 + 1 - 10000000000000000', note: 'the 1 vanishes in a float' },
   { expr: 'ln(exp(50)) - 50', note: 'round trip' },
+  { expr: 'exp(1000)', note: 'the float overflows to Infinity' },
   { expr: 'pi', note: 'as many digits as you like' },
 ];
 
