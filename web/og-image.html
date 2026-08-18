@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!-- Source for og-image.png (1200x630 social card). Regenerate by opening
+     this file in a browser at exactly 1200x630 and screenshotting, e.g. with
+     Playwright: page.setViewportSize({width:1200,height:630}) then
+     page.screenshot(). Styled to match style.css (light scheme). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: #f8f6f1;
+    color: #211e19;
+    font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+    padding: 56px 64px 0;
+    position: relative;
+  }
+  h1 { font-size: 68px; font-weight: 600; letter-spacing: -0.015em; }
+  .tagline { font-size: 30px; color: #6e6960; margin-top: 10px; }
+  .card {
+    margin-top: 40px;
+    background: #fffefb;
+    border: 1px solid #e7e2d7;
+    border-radius: 18px;
+    box-shadow: 0 2px 4px rgba(60,50,30,0.05), 0 18px 50px -30px rgba(60,50,30,0.25);
+    padding: 30px 38px 34px;
+  }
+  .expr {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 30px;
+    padding-bottom: 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid #e7e2d7;
+  }
+  .panes { display: flex; gap: 34px; }
+  .pane { flex: 1; min-width: 0; }
+  .pane-label {
+    font-family: system-ui, sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #6e6960;
+    margin-bottom: 12px;
+  }
+  .value {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 27px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: #f1ede3;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .cr { background: rgba(29,122,72,0.06); border-color: rgba(29,122,72,0.22); }
+  .wrong { color: #b23a2e; background: rgba(178,58,46,0.12); border-radius: 4px; }
+  .verdict {
+    font-family: system-ui, sans-serif;
+    font-size: 20px;
+    color: #b23a2e;
+    margin-top: 14px;
+  }
+  .footer {
+    position: absolute;
+    left: 64px; right: 64px; bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .url { font-family: system-ui, sans-serif; font-size: 21px; color: #6e6960; }
+  .pi {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 17px;
+    letter-spacing: 0.12em;
+    color: #a49d92;
+    white-space: nowrap;
+    overflow: hidden;
+    width: 560px;
+    -webkit-mask-image: linear-gradient(to right, black 40%, transparent 97%);
+    mask-image: linear-gradient(to right, black 40%, transparent 97%);
+  }
+</style>
+</head>
+<body>
+  <h1>Constructive Reals</h1>
+  <div class="tagline">A calculator that never rounds — every digit is correct, and you can always ask for more.</div>
+  <div class="card">
+    <div class="expr">0.1 + 0.2</div>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">Constructive real</div>
+        <div class="value cr">0.30000000000000000000</div>
+      </div>
+      <div class="pane">
+        <div class="pane-label">64-bit float</div>
+        <div class="value">0.3000000000000000<span class="wrong">4</span></div>
+        <div class="verdict">diverges after 17 digits — off by ≈ 4.0e-17</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <div class="url">joelburget.github.io/constructive-reals</div>
+    <div class="pi">3.14159265358979323846264338327950288419716939937510582097494459230781640628620899</div>
+  </div>
+</body>
+</html>

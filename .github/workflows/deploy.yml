@@ -40,6 +40,7 @@ jobs:
              _build/default/web/style.css \
              _build/default/web/app.js \
              _build/default/web/worker.js \
+             _build/default/web/og-image.png \
              _build/default/web/web_main.bc.js \
              _site/
 
