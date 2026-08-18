@@ -208,6 +208,10 @@ code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; fo
   padding-left: 0;
   border-left: none;
 }
+/* Space out siblings under a branching node, so the end of one child's
+   chain is visually separated from the next child. */
+.dag .dag-children:not(.dag-flat) > * + * { margin-top: 0.45rem; }
+.dag .dag-chain-arrow { color: var(--unknown); }
 .dag summary { cursor: pointer; list-style-position: inside; }
 .dag .dag-leaf { padding-left: 1.35rem; }
 .dag .dag-op { font-weight: 600; }

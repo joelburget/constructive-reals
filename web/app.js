@@ -218,7 +218,7 @@ const OP_INFO = {
   inv: { label: () => '1 ∕ x', desc: 'reciprocal' },
   exp: { label: () => 'exp', desc: 'exponential (argument prescaled for fast convergence)' },
   cos: { label: () => 'cos', desc: 'cosine (argument prescaled for fast convergence)' },
-  ln: { label: () => 'ln', desc: 'natural log (argument prescaled for fast convergence)' },
+  ln: { label: () => 'ln(1+·)', desc: 'natural log of one plus the argument (argument prescaled for fast convergence)' },
   asin: { label: () => 'asin', desc: 'arcsine (argument prescaled for fast convergence)' },
   sqrt: { label: () => '√', desc: 'square root (Newton iteration)' },
   pi: { label: () => 'π', desc: 'Gauss–Legendre pi' },
@@ -243,7 +243,7 @@ function renderDag(container, dagData) {
   const nodes = dagData.nodes;
   const renderedIds = new Set();
 
-  function renderNode(id, path) {
+  function renderNode(id, path, isChainLink) {
     const node = nodes[id];
     const info = OP_INFO[node.op] || { label: () => node.op, desc: node.op };
 
@@ -261,6 +261,15 @@ function renderDag(container, dagData) {
 
     const line = document.createElement('span');
     line.className = 'dag-line';
+    if (isChainLink) {
+      // This row is the argument of the row above it (chains render at the
+      // same indentation, so mark the parent→argument relationship).
+      const arrow = document.createElement('span');
+      arrow.className = 'dag-chain-arrow';
+      arrow.textContent = '↳ ';
+      arrow.title = 'argument of the operation above';
+      line.append(arrow);
+    }
     const opEl = document.createElement('span');
     opEl.className = 'dag-op';
     opEl.textContent = label;
@@ -308,7 +317,7 @@ function renderDag(container, dagData) {
     // instead of staircasing off the right edge. Branches still indent.
     kids.className = children.length === 1 ? 'dag-children dag-flat' : 'dag-children';
     children.forEach((childId, i) => {
-      kids.append(renderNode(childId, `${path}.${i}`));
+      kids.append(renderNode(childId, `${path}.${i}`, children.length === 1));
     });
     details.append(kids);
     return details;
