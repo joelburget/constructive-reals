@@ -17,6 +17,18 @@ python3 -m http.server -d _build/default/web
 
 then open <http://localhost:8000>. (A real HTTP server is needed because the page runs its computations in a Web Worker.) The demo is deployed to GitHub Pages automatically on pushes to `main` — see `.github/workflows/deploy.yml`.
 
+### Regenerating the social card
+
+`web/og-image.png` is the preview image shown when the demo is linked on social media. It's a checked-in PNG rendered from `web/og-image.html`, since CI has no browser to build it with. After editing that file — or to pick up a design change — regenerate it from the repository root:
+
+```
+npm install playwright
+npx playwright install chromium
+node web/render-og-image.js
+```
+
+and commit the updated `web/og-image.png`. The card is a 1200×630 layout captured at 2x (so, a 2400×1260 file); those dimensions are also declared in the `og:image:width` / `og:image:height` meta tags in `web/index.html`, so keep them in sync if you change the size.
+
 ## Terminal demo
 
 There's also a lightweight calculator REPL, which can be run with `dune exec ./calculator.exe`. (`.exe` is a dune thing, not a Windows thing)
