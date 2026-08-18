@@ -33,9 +33,19 @@ jobs:
       - name: Build site
         run: opam exec -- dune build @site
 
+      - name: Stage site files
+        run: |
+          mkdir _site
+          cp _build/default/web/index.html \
+             _build/default/web/style.css \
+             _build/default/web/app.js \
+             _build/default/web/worker.js \
+             _build/default/web/web_main.bc.js \
+             _site/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _build/default/web
+          path: _site
 
   deploy:
     needs: build
