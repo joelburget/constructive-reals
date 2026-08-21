@@ -13,13 +13,28 @@
   <meta property="og:image:width" content="2400">
   <meta property="og:image:height" content="1260">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="theme-color" content="#f8f6f1" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#191817" media="(prefers-color-scheme: dark)">
+  <meta id="theme-color" name="theme-color" content="#f8f6f1">
+  <script>
+    /* Apply a saved choice before the stylesheet loads, avoiding a flash of
+       the system theme. With no saved choice, CSS follows the OS setting. */
+    (() => {
+      let saved;
+      try { saved = localStorage.getItem('theme'); } catch (_) {}
+      if (saved === 'light' || saved === 'dark') {
+        document.documentElement.dataset.theme = saved;
+      }
+      const dark = saved === 'dark' ||
+        (!saved && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.getElementById('theme-color').content = dark ? '#191817' : '#f8f6f1';
+    })();
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.86em' font-size='88' font-family='Georgia,serif'>&#960;</text></svg>">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
+    <button id="theme-toggle" class="theme-toggle" type="button"
+            aria-label="Switch to dark mode">☾</button>
     <h1>Constructive Reals</h1>
     <p class="tagline">
       A calculator that never rounds. Every digit it prints is correct — ask
@@ -56,22 +71,17 @@
     <section class="explain">
       <h2>What is a constructive real?</h2>
       <p>
-        A floating-point number is a snapshot: 53 bits of mantissa, fixed at
+        A floating-point number has limited precision: 53 bits of mantissa, fixed at
         the moment each operation rounds. A constructive (or computable) real
         is a <em>program</em>: a function that, given a precision
         <code>p</code>, returns an integer <code>n</code> such that
         <code>n·2<sup>p</sup></code> is within <code>2<sup>p</sup></code> of
-        the true value. The number itself is never rounded, because the number
-        itself is never "computed" — only approximations to it are, and you
-        can always ask for a better one. That's what the digits slider does:
-        every position re-queries the same number at higher precision, and
-        every digit shown is guaranteed correct.
+        the true value. The digits slider controls how many digits of precision the program should compute.
       </p>
 
       <h2>How results are represented</h2>
       <p>
-        When you type <code>sqrt(2)*sqrt(2) - 2</code>, no arithmetic happens
-        at first. The calculator builds a term graph — multiplication node,
+        When you type <code>sqrt(2)*sqrt(2) - 2</code>, the calculator first builds a term graph — multiplication node,
         square-root nodes, integer leaves — which you can inspect under
         "How is this represented?" on each result. Evaluation is lazy and
         demand-driven: asking the root for <code>p</code> bits makes each node
@@ -80,9 +90,7 @@
       </p>
       <p>
         Each node also memoizes the best approximation it has produced so far
-        (shown as <code>≈ value</code> in the graph; hover to see the raw
-        scaled integer). Ask for more digits and the caches deepen; ask for
-        fewer and the cached answer is reused instantly. Terms that nothing
+        (shown as <code>≈ value</code> in the graph). Any time you ask for more digits the cached value deepens, and when you ask for less it reuses the cached answer. Terms that nothing
         has demanded yet are marked <em>not evaluated</em> — for instance, an
         expression's structure can be built and displayed without ever
         computing a single digit.
@@ -94,14 +102,13 @@
         characteristic ways, all reproducible above:
       </p>
       <ul>
-        <li><strong>Representation error</strong> — <code>0.1</code> has no
-          finite binary expansion, so <code>0.1 + 0.2</code> starts from two
-          already-wrong inputs and the sum exposes it.</li>
-        <li><strong>Catastrophic cancellation</strong> — subtracting nearly
+        <li><strong>Representation error</strong>: <code>0.1</code> and <code>0.2</code> have no
+          finite binary expansion, so <code>0.1 + 0.2</code> adds two values close to, but not exactly the numbers entered. The sum is halfway between two representable floats (0.3 and 0.30000000000000004), and IEEE 754’s ties-to-even rule chooses the upper one.</li>
+        <li><strong>Catastrophic cancellation</strong>: subtracting nearly
           equal quantities, as in <code>sqrt(2)*sqrt(2) - 2</code>, cancels
           the correct leading digits and promotes the rounding noise to the
           front of the answer.</li>
-        <li><strong>Absorption</strong> — <code>10<sup>16</sup> + 1</code>
+        <li><strong>Absorption</strong>: <code>10<sup>16</sup> + 1</code>
           rounds back to <code>10<sup>16</sup></code>: the 1 is smaller than
           one unit in the last place, so it simply vanishes.</li>
       </ul>

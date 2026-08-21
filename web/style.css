@@ -23,11 +23,32 @@
   --serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #191817;
+  --fg: #e9e6df;
+  --muted: #a29b8f;
+  --faint: #6f695f;
+  --card-bg: #201f1d;
+  --card-border: #35332f;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px -18px rgba(0, 0, 0, 0.6);
+  --accent: #9aa5f5;
+  --accent-fg: #14131c;
+  --good: #55c082;
+  --good-bg: rgba(85, 192, 130, 0.08);
+  --good-border: rgba(85, 192, 130, 0.28);
+  --bad: #e77362;
+  --bad-bg: rgba(231, 115, 98, 0.12);
+  --unknown: #767066;
+  --code-bg: #282723;
+  --selection: rgba(154, 165, 245, 0.28);
+  color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #191817;
     --fg: #e9e6df;
     --muted: #a29b8f;
@@ -45,6 +66,7 @@
     --unknown: #767066;
     --code-bg: #282723;
     --selection: rgba(154, 165, 245, 0.28);
+    color-scheme: dark;
   }
 }
 
@@ -79,8 +101,38 @@ code {
 }
 
 /* --- header --- */
+header { position: relative; }
+
+.theme-toggle {
+  position: absolute;
+  top: -1.35rem;
+  /* Stay aligned with the viewport edge on wide screens, like the reference
+     page, while falling back to the content edge on narrow screens. */
+  right: min(0rem, calc(50% - 50vw + 2rem));
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--muted);
+  font: 1rem/1 var(--sans);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s,
+              transform 0.15s;
+}
+.theme-toggle:hover {
+  color: var(--fg);
+  border-color: var(--muted);
+  transform: rotate(12deg);
+}
+.theme-toggle:active { transform: rotate(12deg) scale(0.94); }
+
 h1 {
   margin: 0 0 0.35rem;
+  padding-right: 3rem;
   font-size: 2.6rem;
   font-weight: 600;
   letter-spacing: -0.015em;
@@ -365,5 +417,5 @@ footer {
 
 @media (prefers-reduced-motion: reduce) {
   .card { animation: none; }
-  .chip, #expr, #repl-form button { transition: none; }
+  .chip, #expr, #repl-form button, .theme-toggle { transition: none; }
 }

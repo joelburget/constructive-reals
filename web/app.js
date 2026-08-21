@@ -29,6 +29,50 @@ const formEl = document.getElementById('repl-form');
 const chipsEl = document.getElementById('chips');
 const busyEl = document.getElementById('busy');
 
+/* ---------- theme ---------- */
+
+const rootEl = document.documentElement;
+const themeToggleEl = document.getElementById('theme-toggle');
+const themeColorEl = document.getElementById('theme-color');
+const darkPreference = matchMedia('(prefers-color-scheme: dark)');
+
+function savedTheme() {
+  try {
+    const theme = localStorage.getItem('theme');
+    return theme === 'light' || theme === 'dark' ? theme : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function currentTheme() {
+  const saved = savedTheme();
+  if (saved) return saved;
+  return darkPreference.matches ? 'dark' : 'light';
+}
+
+function refreshThemeControl() {
+  const theme = currentTheme();
+  const next = theme === 'dark' ? 'light' : 'dark';
+  themeToggleEl.textContent = theme === 'dark' ? '☀' : '☾';
+  themeToggleEl.setAttribute('aria-label', `Switch to ${next} mode`);
+  themeToggleEl.title = `Switch to ${next} mode`;
+  themeColorEl.content = theme === 'dark' ? '#191817' : '#f8f6f1';
+}
+
+themeToggleEl.addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  rootEl.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (_) {}
+  refreshThemeControl();
+});
+
+darkPreference.addEventListener('change', () => {
+  if (!savedTheme()) refreshThemeControl();
+});
+
+refreshThemeControl();
+
 /* ---------- worker plumbing ---------- */
 
 let worker = null;
